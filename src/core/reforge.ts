@@ -14,7 +14,7 @@
  */
 import type { EquipmentInstance, GNum } from '@/types'
 import { rng } from '@/utils/random'
-import { AFFIXES, affixDef } from '@/data/affixes'
+import { AFFIXES, affixDef, affixFitBlock } from '@/data/affixes'
 import { equipmentTemplate } from '@/data/equipment'
 import { qualityDef } from '@/data/qualities'
 import {
@@ -52,8 +52,11 @@ export interface ReforgeCost {
  *
  * 没有次数项,也没有上限:同一件、同一封存数,第一次与第两百次一个价。
  * 无可重铸余地(全封存)时返回 null —— 这是唯一的"不能再炼"。
+ * 模板缺失(只可能是坏档)也返回 null:抽取池要按部位过滤,不知部位就不洗 ——
+ * 与自动重铸候选在模板缺失时为空同判,界面不出重铸钮、服务也不洗。
  */
 export function reforgeCost(inst: EquipmentInstance): ReforgeCost | null {
+  if (!equipmentTemplate(inst.templateId)) return null
   if (reforgeableAffixIds(inst).length === 0) return null
   const sealed = (inst.sealedAffixIds ?? []).length
   const load = 1 + sealed * REFORGE_SEAL_LOAD
@@ -106,6 +109,7 @@ export function reforgeEquipment(uid: string, quiet = false): boolean {
   }
 
   const template = equipmentTemplate(inst.templateId)
+  if (!template) return false
   const quality = qualityDef(inst.quality)
   const sealed = new Set(inst.sealedAffixIds ?? [])
   const kept = inst.affixes.filter(a => sealed.has(a.id))
@@ -121,12 +125,7 @@ export function reforgeEquipment(uid: string, quiet = false): boolean {
   let guard = 0
   while (fresh.length < wantCount - kept.length && guard < 50) {
     guard += 1
-    const pool = AFFIXES.filter(
-      a =>
-        !used.has(a.id) &&
-        (a.minRank === undefined || quality.rank >= a.minRank) &&
-        (a.slots === undefined || template === undefined || a.slots.includes(template.slot))
-    )
+    const pool = AFFIXES.filter(a => !used.has(a.id) && affixFitBlock(a, template.slot, quality.rank) === null)
     if (pool.length === 0) break
     const picked = rng.weighted(pool, a => a.weight)
     used.add(picked.id)
@@ -179,6 +178,35 @@ export function sealAffix(uid: string, affixId: string): boolean {
   const name = affixDef(affixId)?.name ?? '词条'
   ui.toast(sealDoneToast(name), 'success')
   return true
+}
+
+/**
+ * 「保留 keptIds、其余重铸」时,在这件上洗出 affixId(任意数值)平均要几次 —— 词条转移的定价参照。
+ *
+ * 照 reforgeEquipment 的规则推:每次新抽 max(保留+1, 区间内条数) − 保留 条,
+ * 从同一个池子(部位、品质合规且不在保留里)按权重抽。一阶近似:
+ * 单次命中率 ≈ 平均新抽条数 × 该条权重 ÷ 池总权重(无放回抽取让真实命中率略高,
+ * 与真重铸对账见 affixTransferEconomy.spec)。
+ * 改重铸的条数或抽取规则时,这里要跟着改 —— 那边的审计会先红。
+ * 洗不出(模板缺失、部位或品质不合)返回 Infinity。
+ */
+export function expectedRollsToHit(inst: EquipmentInstance, affixId: string, keptIds: readonly string[]): number {
+  const template = equipmentTemplate(inst.templateId)
+  const def = affixDef(affixId)
+  if (!template || !def) return Infinity
+  const quality = qualityDef(inst.quality)
+  if (affixFitBlock(def, template.slot, quality.rank) !== null) return Infinity
+  const kept = new Set(keptIds)
+  const poolWeight = AFFIXES.filter(a => !kept.has(a.id) && affixFitBlock(a, template.slot, quality.rank) === null).reduce(
+    (sum, a) => sum + a.weight,
+    0
+  )
+  if (poolWeight <= 0) return Infinity
+  const [lo, hi] = quality.affixes
+  let fresh = 0
+  for (let c = lo; c <= hi; c += 1) fresh += Math.max(kept.size + 1, c) - kept.size
+  fresh /= hi - lo + 1
+  return 1 / Math.min(1, (fresh * def.weight) / poolWeight)
 }
 
 // ---------- 自动重铸(玩家反馈:一键重铸多次,洗到指定词条就停) ----------

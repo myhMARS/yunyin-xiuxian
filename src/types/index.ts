@@ -269,6 +269,8 @@ export interface EquipmentInstance {
    * 至多 4 个汉字,详情弹窗里改;格卡与部位行都带出。老档/未标记件为 undefined。
    */
   note?: string
+  /** 被转入过词条的次数(词条转移,议题 #22)。只增不减;智能收纳据此当作有投入。老档/未转入件为 undefined */
+  transferCount?: number
 }
 
 // ============ 法宝 ============

@@ -75,6 +75,8 @@
  *      巡页用的档里敌人名字都短、认知层为 0(特性根本不显示),这一档从前没被量过。
  *   三十七 开炉炼丹弹窗(议题 #21):真打开量 —— 丹名单行、信息栏不被右列挤窄、
  *      正文之外没有第二个滚动盒、正文超长时上下有渐隐提示。
+ *   三十八 词条转移面板(议题 #22):最挤的一档(九条词条的神品源件、满条带封存的目标)
+ *      三档宽度真走一遍,每步过通用尺子,确认后器灵尘照价签扣。
  *
  * 判据是「横向溢出」这一类——它正是窄屏上最常见的排版事故。
  * 说明:这是无头 Chromium 的视口模拟,不是真机;字体渲染与安全区(刘海/手势条)
@@ -2780,6 +2782,211 @@ for (const vp of [
     if (SHOTS) await page.screenshot({ path: `${SHOTS_DIR}/craft-${vp.tag}-bottom.png` }).catch(() => {})
   }
   if (pageErrors.length) failures.push(`${tag} 开炉场景页面异常:${[...new Set(pageErrors)].join(' | ')}`)
+  await ctx.close()
+}
+
+// ---- 第三十八件事:词条转移面板(议题 #22)真走一遍,并对账 ----
+/*
+ * 夹具摆出最挤的一档:源件是神品武器、九条词条(含最长的效果句与重名的「破妄」);
+ * 目标是已装备的天品武器、七条满、封着一条;另有一件已有「洞虚」且更高的(置灰),
+ * 再加八件候选,逼出「全部 N 件」。三档宽度各走一遍:
+ *   选「洞虚」→ 展开全部候选 → 选已装备那件 → 只有「顶替「破甲」」成立且已预选
+ *   → 「转 移」→ 确认态写清顶替什么、源件失去什么 → 「确认转移」→ 器灵尘照价签扣。
+ * 每一步都过通用尺子(竖排 / 量词分家 / 孤字 / 可点 ≥28px / 正文外无第二个滚动盒)。
+ */
+for (const vp of [
+  { width: 320, height: 568, tag: '320', dpr: 2 },
+  { width: 375, height: 812, tag: '375', dpr: 3 },
+  { width: 390, height: 844, tag: '390', dpr: 3 }
+]) {
+  const tag = `[${vp.tag}-transfer]`
+  const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.dpr, isMobile: true, hasTouch: true })
+  const SAVE_SECRET = 'yunyin-xiuxian::dao-in-the-clouds::v1'
+  const enc = o => CryptoJS.AES.encrypt(JSON.stringify(o), SAVE_SECRET).toString()
+  const gn = (m, e) => ({ m, e })
+  const now = Date.now()
+  const roll9 = ids => ids.map(id => ({ id, roll: 0.9 }))
+  const extras = ['w_zhuqing', 'w_xuantie', 'w_qingshuang', 'w_hanfeng', 'w_zhuqing', 'w_xuantie', 'w_qingshuang', 'w_hanfeng'].map((templateId, i) => ({
+    uid: `tf_x${i}`,
+    templateId,
+    quality: i % 2 ? 'immortal' : 'heaven',
+    tier: 25,
+    level: 0,
+    affixes: [{ id: 'atk1', roll: 0.5 }]
+  }))
+  const slices = {
+    game: { started: true, saveVersion: 2, createdAt: now - 86400000, lastActiveAt: now, totalPlaySec: 600, createRerolls: 8, createProfile: null },
+    player: {
+      name: '转移自检',
+      major: 12,
+      sub: 3,
+      exp: gn(1, 3),
+      age: 300,
+      dead: false,
+      reincarnation: { count: 1, daoFruit: 3, talents: [], insight: 50, lives: [], vow: null, trial: null, bonds: [] },
+      linggen: { roots: [{ element: 'metal', aptitude: 90 }], gradeName: '单灵根', growthMult: 1.2 }
+    },
+    resources: { spiritStone: gn(1, 40), qi: 5000, wudao: 200, herb: 100, ore: 100, page: 20, dust: 999999 },
+    inventory: {
+      items: [
+        { uid: 'tf_src', templateId: 'w_hanfeng', quality: 'divine', tier: 25, level: 0, affixes: roll9(['exe2', 'bs2', 'fm2', 'lh2', 'pen3', 'dmg1', 'ac2', 'cdmg2', 'ls2']) },
+        {
+          uid: 'tf_main',
+          templateId: 'w_zidian',
+          quality: 'heaven',
+          tier: 25,
+          level: 3,
+          affixes: [
+            { id: 'pen1', roll: 0.5 },
+            { id: 'atk1', roll: 0.5 },
+            { id: 'def1', roll: 0.5 },
+            { id: 'hp1', roll: 0.5 },
+            { id: 'cult1', roll: 0.5 },
+            { id: 'gain1', roll: 0.5 },
+            { id: 'crit1', roll: 0.5 }
+          ],
+          sealedAffixIds: ['atk1']
+        },
+        { uid: 'tf_dup', templateId: 'w_qingshuang', quality: 'heaven', tier: 25, level: 0, affixes: [{ id: 'pen3', roll: 0.97 }] },
+        ...extras
+      ],
+      equipped: { weapon: 'tf_main' },
+      pills: {},
+      artifacts: [],
+      equippedArtifacts: []
+    },
+    settings: { privacyAccepted: true, sfxOn: false, musicOn: false, musicVol: 0, sfxVol: 0, reduceMotion: true, battleSpeed: 4, decomposeRanks: [], smartKeep: { enabled: false, minQuality: 3, keepCoreAffix: true, keepComboPiece: true }, theme: 'dark' }
+  }
+  await ctx.addInitScript(
+    data => {
+      if (localStorage.getItem('__transferSeeded')) return
+      for (const [k, v] of Object.entries(data)) localStorage.setItem(k, v)
+      localStorage.setItem('__transferSeeded', '1')
+    },
+    Object.fromEntries(Object.entries(slices).map(([k, v]) => [`yunyin.${k}`, enc(v)]))
+  )
+  const page = await ctx.newPage()
+  const pageErrors = []
+  watchPageErrors(page, pageErrors)
+  await page.goto(INDEX + '#/inventory', { waitUntil: 'load' })
+  await page.waitForTimeout(1200)
+  await clearOverlays(page)
+
+  /** 每一步都过的尺子:通用排版判据 + 弹窗控件 + 正文外无第二个滚动盒 */
+  const rulers = async step => {
+    checked += 1
+    const info = await measurePage(page)
+    for (const p of problemsOf(info)) failures.push(`${tag} ${step} → ${p}`)
+    const audit = await auditModalControls(page)
+    if (audit?.small.length) failures.push(`${tag} ${step}:可点元素过小 ${audit.small.join(' | ')}`)
+    if (audit?.unnamed.length) failures.push(`${tag} ${step}:${audit.unnamed.length} 个无名控件`)
+    const nested = await page.evaluate(() => {
+      const panel = document.querySelector('.modal-panel')
+      const body = panel?.querySelector('[data-modal-body]')
+      return panel
+        ? [...panel.querySelectorAll('*')]
+            .filter(el => el !== body && /(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1)
+            .map(el => `${el.tagName.toLowerCase()}(${el.clientHeight}/${el.scrollHeight}px)`)
+        : []
+    })
+    if (nested.length) failures.push(`${tag} ${step}:正文里还套着会滚的盒子 ${nested.join(' | ')}`)
+    if (SHOTS) await page.screenshot({ path: `${SHOTS_DIR}/transfer-${vp.tag}-${step}.png` }).catch(() => {})
+  }
+  const radios = group => page.locator(`.modal-panel [role=group][aria-label="${group}"] button`)
+  const dustOnPage = () =>
+    page.evaluate(() => {
+      const m = /器灵尘\s*(\d+)/.exec(document.querySelector('main')?.innerText || '')
+      return m ? Number(m[1]) : null
+    })
+
+  await page.locator('main button[data-uid="tf_src"]').first().click({ timeout: 3000 }).catch(() => {})
+  await page.waitForTimeout(600)
+  const entry = page.locator('.modal-panel footer button', { hasText: '转移词条' }).first()
+  if ((await entry.count()) === 0) {
+    failures.push(`${tag} 转移场景:源件详情里没有「转移词条」入口(夹具没读出来?)`)
+  } else {
+    // 先把详情滚到底再进转移:同一个滚动盒整块换内容,不回顶的话「转出」开头几条会在视口上方
+    await page.evaluate(() => {
+      const body = document.querySelector('.modal-panel [data-modal-body]')
+      if (body) body.scrollTop = body.scrollHeight
+    })
+    await page.waitForTimeout(200)
+    await entry.click({ timeout: 3000 }).catch(() => {})
+    await page.waitForTimeout(500)
+    const firstRowHidden = await page.evaluate(() => {
+      const body = document.querySelector('.modal-panel [data-modal-body]')
+      const first = document.querySelector('.modal-panel [role=group][aria-label="转出"] button')
+      if (!body || !first) return null
+      return first.getBoundingClientRect().top < body.getBoundingClientRect().top - 1
+    })
+    if (firstRowHidden !== false) failures.push(`${tag} 进转移时正文没回顶:「转出」第一条在视口上方(或没渲染)`)
+    const outCount = await radios('转出').count()
+    if (outCount !== 9) failures.push(`${tag} 转出列了 ${outCount} 条(源件九条)`)
+    await rulers('1-转出')
+
+    await radios('转出').filter({ hasText: '洞虚' }).first().click({ timeout: 3000 }).catch(() => {})
+    await page.waitForTimeout(400)
+    const shown = await radios('转入').count()
+    const more = page.locator('.modal-panel button', { hasText: /全部 \d+ 件/ }).first()
+    if (shown !== 8) failures.push(`${tag} 候选先列 ${shown} 件(应先列 8 件)`)
+    if ((await more.count()) === 0) failures.push(`${tag} 候选 10 件却没有「全部 N 件」`)
+    else await more.click({ timeout: 3000 }).catch(() => {})
+    await page.waitForTimeout(300)
+    const all = await radios('转入').count()
+    if (all !== 10) failures.push(`${tag} 展开后候选 ${all} 件(应为 10)`)
+    const dupDisabled = await radios('转入').filter({ hasText: '已有此条' }).first().isDisabled().catch(() => false)
+    if (!dupDisabled) failures.push(`${tag} 已有更高「洞虚」的那件没置灰`)
+    await rulers('2-转入')
+
+    await radios('转入').filter({ hasText: '已装备' }).first().click({ timeout: 3000 }).catch(() => {})
+    await page.waitForTimeout(500)
+    const slots = await page.evaluate(() =>
+      [...document.querySelectorAll('.modal-panel [role=group][aria-label="位置"] button')].map(el => ({
+        text: (el.textContent || '').replace(/\s+/g, ''),
+        disabled: el.disabled,
+        checked: el.getAttribute('aria-pressed') === 'true',
+        dashed: getComputedStyle(el).borderTopStyle === 'dashed'
+      }))
+    )
+    const append = slots.find(s => s.text.startsWith('新增'))
+    const pen = slots.find(s => s.text.includes('顶替「破甲」'))
+    if (!append || !append.disabled || !append.text.includes('词条已满')) failures.push(`${tag} 满条目标的「新增」没挡下/没写「词条已满」`)
+    if (!pen || pen.disabled || !pen.checked) failures.push(`${tag} 唯一成立的「顶替「破甲」」没预选`)
+    // 被挡的卡要一眼看得出(虚线框),不能与可选的长得一样、点了没反应
+    if (slots.some(s => s.disabled !== s.dashed)) failures.push(`${tag} 被挡的落位没有置灰(与可选的长得一样)`)
+    const stacked = slots.filter(s => s.text.includes('属性重叠')).length
+    if (stacked !== 6) failures.push(`${tag} 递减属性那几条应写「属性重叠」,实际 ${stacked} 条`)
+    const sealOn = await page.locator('.modal-panel input[type=checkbox]').first().isChecked().catch(() => false)
+    if (!sealOn) failures.push(`${tag} 「同时封存」默认没勾上`)
+    await rulers('3-位置')
+
+    const footer = (await page.locator('.modal-panel footer').innerText().catch(() => '')).replace(/\s+/g, ' ')
+    const price = /尘×(\d+)/.exec(footer)
+    const dustBefore = await dustOnPage()
+    await page.locator('.modal-panel footer button', { hasText: /转\s*移/ }).last().click({ timeout: 3000 }).catch(() => {})
+    await page.waitForTimeout(400)
+    const armedText = (await page.locator('.modal-panel footer').innerText().catch(() => '')).replace(/\s+/g, '')
+    if (!armedText.includes('洞虚') || !armedText.includes('顶替「破甲」') || !armedText.includes('源件失去「洞虚」')) {
+      failures.push(`${tag} 确认态没写清:${armedText.slice(0, 60)}`)
+    }
+    await rulers('4-确认')
+    await page.locator('.modal-panel footer button', { hasText: '确认转移' }).first().click({ timeout: 3000 }).catch(() => {})
+    await page.waitForTimeout(700)
+    const dustAfter = await dustOnPage()
+    if (!price || dustBefore === null || dustAfter === null) {
+      failures.push(`${tag} 转移场景:读不到价签或器灵尘(价签 ${price?.[1]} · 前 ${dustBefore} · 后 ${dustAfter})`)
+    } else if (dustBefore - dustAfter !== Number(price[1])) {
+      failures.push(`${tag} 价签写尘×${price[1]},实扣 ${dustBefore - dustAfter}`)
+    }
+    const toast = await page.evaluate(() => document.body.innerText.includes('「洞虚」已转入'))
+    if (!toast) failures.push(`${tag} 转完没有「「洞虚」已转入」提示`)
+    const left = await radios('转出').count()
+    if (left !== 8) failures.push(`${tag} 转完源件应剩 8 条、面板留在转移模式,实际列 ${left} 条`)
+    if (vp.tag === '390') {
+      console.log(`\n词条转移:「洞虚」→ 已装备的那件,顶替「破甲」· 价签尘×${price?.[1]} · 器灵尘 ${dustBefore} → ${dustAfter}`)
+    }
+  }
+  if (pageErrors.length) failures.push(`${tag} 转移场景页面异常:${[...new Set(pageErrors)].join(' | ')}`)
   await ctx.close()
 }
 

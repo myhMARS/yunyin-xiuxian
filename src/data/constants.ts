@@ -292,6 +292,17 @@ export const REFORGE_DUST_BASE = 30
 export const SEAL_STONE_BASE = 200
 
 /**
+ * 词条转移定价(议题 #22):在目标件上「保留其余词条、把这一条洗出来」的期望花费 × 此率。
+ *
+ * 1 次 = 一次无封存重铸(灵石按目标阶 REFORGE_STONE_BASE,尘 REFORGE_DUST_BASE),
+ * 保留 n 条时每洗一次再乘 (1 + REFORGE_SEAL_LOAD × n),次数由 reforge.expectedRollsToHit 解析求得。
+ * 判据:转移价须落在该期望价的 0.4~1.1 倍 —— 高了无人用,低了封存路径作废
+ * (affixTransferEconomy.spec 用真重铸对账)。数值高低不进价:转移的价值正在于数值确定。
+ * 灵石只按目标阶计:按源件阶计,在低阶件上洗出再转到高阶件就成了套利。
+ */
+export const TRANSFER_PRICE_RATE = 0.6
+
+/**
  * 敌人相对玩家裸装的补偿系数:随层级指数跟随。
  *
  * Phase 33.2:原为 0.9 + 0.18×(tier-1) 且封顶 2.2,tier 9 之后完全冻结——

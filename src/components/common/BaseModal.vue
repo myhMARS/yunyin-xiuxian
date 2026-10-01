@@ -177,6 +177,15 @@
     edgeBottom.value = false
   }
 
+  /**
+   * 正文回到顶上。同一扇弹窗里整块换内容时用(装备详情与词条转移互切、换看另一件):
+   * 滚动盒不重挂,不复位的话新内容会沿用上一屏的滚动位置,开头几行直接在视口外。
+   */
+  function scrollToTop(): void {
+    if (bodyRef.value) bodyRef.value.scrollTop = 0
+  }
+  defineExpose({ scrollToTop })
+
   // ---- Esc 关闭:只让最上面一层可关弹窗响应 ----
   // 多弹窗叠放(详情盖列表)时按一次 Esc 只能退最上层,不能逐层全退;
   // 不可关的顶层(离线卷轴/转世确认 `closable=false`)挡在最上时,Esc 不越层去关底下的

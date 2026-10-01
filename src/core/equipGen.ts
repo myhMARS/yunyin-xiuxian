@@ -5,7 +5,7 @@ import type { AffixRarity, AnyStatKey, EquipmentInstance, EquipSlot, GNum, Quali
 import type { RandomService } from '@/utils/random'
 import { uid } from '@/utils/id'
 import { gnZero, mulN, add } from '@/utils/gnum'
-import { AFFIXES, AFFIX_RARITY_RANK, affixDef, affixValue } from '@/data/affixes'
+import { AFFIXES, AFFIX_RARITY_RANK, affixDef, affixFitBlock, affixValue } from '@/data/affixes'
 import { EQUIPMENT_TEMPLATES, equipmentTemplate } from '@/data/equipment'
 import { QUALITIES, qualityDef } from '@/data/qualities'
 import {
@@ -140,12 +140,7 @@ export function generateEquipment(tier: number, rng: RandomService, opts: GenOpt
   let guard = 0
   while (chosen.length < affixCount && guard < 50) {
     guard += 1
-    const candidates = AFFIXES.filter(
-      a =>
-        !used.has(a.id) &&
-        (a.minRank === undefined || quality.rank >= a.minRank) &&
-        (a.slots === undefined || a.slots.includes(template.slot))
-    )
+    const candidates = AFFIXES.filter(a => !used.has(a.id) && affixFitBlock(a, template.slot, quality.rank) === null)
     if (candidates.length === 0) break
     const picked = rng.weighted(candidates, a => a.weight)
     used.add(picked.id)

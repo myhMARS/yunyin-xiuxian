@@ -4,7 +4,7 @@
  * 「这件装备单看一般,但它是你罡盾·反震组合技的关键部件」
  *
  * 另外三类**永不自动处置**(玩家没说可以扔,就不能替他扔):
- *   练过的件 —— 强化过 / 重铸过 / 封存过词条的,身上有他的投入,只有本人能决定;
+ *   练过的件 —— 强化过 / 重铸过 / 转入过词条 / 带着封存的,身上有他的投入,只有本人能决定;
  *   成套共鸣件 —— 机制 > 数值,凑不齐第二件才是真亏;
  *   词条近满件 —— 条条都在满值线以上,数值本就高过同档。
  */
@@ -68,9 +68,17 @@ export function autoRecycleReason(item: EquipmentInstance): string | null {
   return verdict.keep ? null : verdict.reason
 }
 
-/** 身上有没有玩家的投入(强化 / 重铸 / 封存词条)—— 有则不参与一切自动去留 */
+/**
+ * 身上有没有玩家的投入(强化 / 重铸 / 封存词条 / 转入词条)—— 有则不参与一切自动去留。
+ * 转入词条要算:转一条可达上万器灵尘,若被满包挤位或「依此规则清理」化掉,就是一次丢失事故。
+ */
 export function hasInvestment(item: EquipmentInstance): boolean {
-  return item.level > 0 || (item.reforgeCount ?? 0) > 0 || (item.sealedAffixIds ?? []).length > 0
+  return (
+    item.level > 0 ||
+    (item.reforgeCount ?? 0) > 0 ||
+    (item.sealedAffixIds ?? []).length > 0 ||
+    (item.transferCount ?? 0) > 0
+  )
 }
 
 /** 词条是否条条都在满值线以上(0 词条的件不算 —— 那是没得夸,不是满值) */

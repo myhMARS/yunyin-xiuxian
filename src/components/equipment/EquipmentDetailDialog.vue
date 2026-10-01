@@ -1,6 +1,8 @@
 <template>
-  <BaseModal :open="inst !== undefined" :title="template?.name ?? ''" top @close="close">
-    <div v-if="inst && template && resolved">
+  <BaseModal ref="modalRef" :open="inst !== undefined" :title="template?.name ?? ''" top @close="close">
+    <!-- 词条转移(议题 #22):同一扇弹窗内切换正文与页脚,不再叠一层 -->
+    <AffixTransferPanel v-if="transferOpen && inst" :flow="transfer" @view="viewTarget" />
+    <div v-else-if="inst && template && resolved">
       <div class="flex items-center gap-2">
         <QualityTag :quality="inst.quality" />
         <!-- 界域 + 阶位:同一句「23 阶」在人间界与仙界完全不是一回事,故写清是哪一界 -->
@@ -226,7 +228,8 @@
       </div>
     </div>
     <template #footer>
-      <div class="flex flex-col gap-2">
+      <AffixTransferFooter v-if="transferOpen && inst" :flow="transfer" @back="transferOpen = false" />
+      <div v-else class="flex flex-col gap-2">
         <!-- 重铸与封存 (Phase 30.1) -->
         <!--
           空皮先交代去向:一件凡品掷出零条、或全封存的装备,重铸与封存整块会一起消失 ——
@@ -258,14 +261,22 @@
           <p v-if="inst" class="text-center text-[10px] text-ink-faint tabular">
             已重铸 {{ inst.reforgeCount ?? 0 }} 次 · 已封存 {{ (inst.sealedAffixIds ?? []).length }}/{{ sealCapacity(inst) }}
           </p>
-          <button v-if="reforgeCostVal" class="btn-ghost w-full !py-2 !text-[11px]" @click="autoOpen = !autoOpen">
-            {{ autoOpen ? '收起自动重铸' : '自动重铸 · 洗到指定词条即停' }}
-          </button>
+          <!-- 自动重铸与词条转移并成一行:页脚不加高(320×568 下正文本就只剩一小截) -->
+          <div class="flex gap-2">
+            <button v-if="reforgeCostVal" class="btn-ghost flex-1 !py-2 !text-[11px]" @click="autoOpen = !autoOpen">
+              {{ autoOpen ? '收起自动重铸' : '自动重铸' }}
+            </button>
+            <button v-if="canTransferOut" class="btn-ghost flex-1 !py-2 !text-[11px]" @click="openTransfer">
+              {{ TRANSFER_LABELS.entry }}
+            </button>
+          </div>
         </template>
         <template v-else-if="inst">
           <p class="text-center text-[10px] leading-relaxed text-ink-faint">
             {{ inst.affixes.length === 0 ? '此物一颗词条也无,无从重铸,也无可封存。想炼它,先有纹可刻。' : '词条已尽数封存,无从重铸' }}
           </p>
+          <!-- 全封存的旧档件也能把词条转出去 -->
+          <button v-if="canTransferOut" class="btn-ghost w-full !py-2 !text-[11px]" @click="openTransfer">{{ TRANSFER_LABELS.entry }}</button>
         </template>
         <div class="flex gap-2">
           <button class="btn-seal flex-1" @click="toggleEquip">{{ isEquipped ? '卸 下' : '装 备' }}</button>
@@ -293,7 +304,7 @@
 
 <script setup lang="ts">
   import { computed } from 'vue'
-  import { ref, watch } from 'vue'
+  import { nextTick, ref, watch } from 'vue'
   import { useUiStore } from '@/stores/ui'
   import { useInventoryStore } from '@/stores/inventory'
   import { equipmentTemplate, EQUIP_SLOT_NAMES } from '@/data/equipment'
@@ -306,7 +317,7 @@
   import { endgameUnlocked } from '@/core/endgameService'
   import { whatIfEquip, type WhatIfReport } from '@/core/lab'
   import { autoReforge, reforgeEquipment, reforgeCost, sealAffix, sealCapacity, sealCost, type ReforgeTarget } from '@/core/reforge'
-  import { AFFIXES, affixDef } from '@/data/affixes'
+  import { AFFIXES, affixDef, affixFitBlock } from '@/data/affixes'
   import { qualityDef } from '@/data/qualities'
   import { usePlayerStore } from '@/stores/player'
   import { formatGN } from '@/utils/format'
@@ -314,9 +325,13 @@
   import type { AnyStatKey, GNum } from '@/types'
   import { AFFIX_RARITY_META, STAT_NAMES, statValueText } from '@/ui/statNames'
   import { equipNextLevelText } from '@/ui/equipText'
+  import { TRANSFER_LABELS } from '@/ui/affixTransferText'
+  import { useAffixTransfer } from '@/composables/useAffixTransfer'
   import BaseModal from '@/components/common/BaseModal.vue'
   import QualityTag from '@/components/common/QualityTag.vue'
   import GameIcon from '@/components/common/GameIcon.vue'
+  import AffixTransferPanel from './AffixTransferPanel.vue'
+  import AffixTransferFooter from './AffixTransferFooter.vue'
 
   const ui = useUiStore()
   const inventory = useInventoryStore()
@@ -406,13 +421,7 @@
     const tpl = equipmentTemplate(inst.value.templateId)
     const q = inst.value && qualityDef(inst.value.quality)
     if (!tpl || !q) return []
-    return [...AFFIXES]
-      .filter(
-        a =>
-          (a.slots === undefined || a.slots.includes(tpl.slot)) &&
-          (a.minRank === undefined || q.rank >= a.minRank)
-      )
-      .sort((a, b) => b.weight - a.weight)
+    return [...AFFIXES].filter(a => affixFitBlock(a, tpl.slot, q.rank) === null).sort((a, b) => b.weight - a.weight)
   })
 
   function isAutoTarget(id: string): boolean {
@@ -472,6 +481,39 @@
   watch(inst, () => {
     whatIf.value = null
   })
+
+  // ---- 词条转移(议题 #22):本件作源件,挑一条转到另一件上 ----
+  const transferOpen = ref(false)
+  const transfer = useAffixTransfer(() => (transferOpen.value ? (inst.value?.uid ?? null) : null))
+  const canTransferOut = computed(() => (inst.value?.affixes.length ?? 0) > 0)
+
+  function openTransfer(): void {
+    closeAuto()
+    transferOpen.value = true
+  }
+
+  /** 转移面板里点「前往」:退出转移,详情切到那一件 */
+  function viewTarget(uid: string): void {
+    transferOpen.value = false
+    ui.equipDetailUid = uid
+  }
+
+  // 换了一件(或关掉)就从头来:转移模式、自动重铸的勾选、分解的二步确认都不该串到下一件上
+  watch(
+    () => inst.value?.uid,
+    () => {
+      transferOpen.value = false
+      closeAuto()
+      decomposeArm.value = null
+    }
+  )
+
+  // 详情与转移互切、换看另一件:正文整块换了,滚动盒却没重挂 —— 回到顶上,免得开头几行在视口外
+  const modalRef = ref<InstanceType<typeof BaseModal> | null>(null)
+  watch(
+    () => [transferOpen.value, inst.value?.uid] as const,
+    () => void nextTick(() => modalRef.value?.scrollToTop())
+  )
 
   /** 换装流派预览:契合度 当前 → 装备后 */
   const buildPreview = computed(() => {

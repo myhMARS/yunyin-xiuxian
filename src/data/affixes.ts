@@ -187,6 +187,18 @@ export function affixDef(id: string): AffixDef | undefined {
 }
 
 /**
+ * 一条词条能否长在某部位、某品质的装备上 —— 掉落生成、重铸抽取、自动重铸候选、
+ * 词条转移共用这一处。返回挡住它的那一项('slot' 部位不符 / 'rank' 品质不够),能落返回 null。
+ *
+ * 此前三处各抄一份「slots + minRank」:界面亮着、服务不认的事故就从这种分叉里来。
+ */
+export function affixFitBlock(def: AffixDef, slot: EquipSlot, rank: number): 'slot' | 'rank' | null {
+  if (def.slots !== undefined && !def.slots.includes(slot)) return 'slot'
+  if (def.minRank !== undefined && rank < def.minRank) return 'rank'
+  return null
+}
+
+/**
  * 词条稀有度的高低序(0 最常见,3 最难得)。
  *
  * 它一直只活在数据里(reforge 按它加权抽取),界面上从没露过面 ——

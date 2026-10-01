@@ -60,7 +60,7 @@ const ROUTES = [
 /** 正文里不该出现的数字/占位泄漏 */
 const NUMERIC_LEAK = ['NaN', 'Infinity', 'undefined']
 /** 破坏性/离开型按钮:冒烟盘上不点 */
-const SKIP = /分解|删除|清空|重置|兵解|转世|散尽|导出|导入|隐私|关于我们|出 秘 境|暂别/
+const SKIP = /分解|删除|清空|重置|兵解|转世|散尽|导出|导入|隐私|关于我们|出 秘 境|暂别|确认转移/
 
 const browser = await chromium.launch({ args: ['--allow-file-access-from-files', '--disable-web-security'] })
 const context = await browser.newContext({ viewport: { width: 375, height: 812 } })

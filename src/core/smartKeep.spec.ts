@@ -46,11 +46,12 @@ describe('智能收纳 · 自动裁决的边界', () => {
     smartOn()
   })
 
-  it('练过的件(强化/重铸/封存)一律当藏,且不进自动回收闸', () => {
+  it('练过的件(强化/重铸/封存/转入词条)一律当藏,且不进自动回收闸', () => {
     const cases: [string, Partial<EquipmentInstance>][] = [
       ['强化过', { level: 5 }],
       ['重铸过', { reforgeCount: 2 }],
-      ['封存过词条', { sealedAffixIds: ['atk1'] }]
+      ['封存过词条', { sealedAffixIds: ['atk1'] }],
+      ['转入过词条', { transferCount: 1 }]
     ]
     for (const [why, patch] of cases) {
       const item = mk(`l_${why}`, 'mortal', patch)
