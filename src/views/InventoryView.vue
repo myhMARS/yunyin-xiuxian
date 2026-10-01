@@ -266,43 +266,41 @@
     <!-- 开炉炼丹 -->
     <BaseModal :open="craftOpen" title="开炉炼丹" wide @close="craftOpen = false">
       <p class="mb-2 text-[11px] text-ink-faint tabular">灵草 {{ resources.herb }} · 灵石 {{ formatGN(resources.spiritStone) }}</p>
-      <!-- 百工技艺:做得多就精。技艺一直在影响成丹,却从不显示 —— 玩家看不到自己在长 -->
-      <div v-if="skillRows.length" class="mb-2 rounded-md bg-paper-deep/60 px-3 py-2">
-        <p class="text-[10px] text-ink-faint">技艺(按道分,做得多就精)</p>
-        <div class="mt-1 space-y-0.5">
-          <p v-for="s in skillRows" :key="s.id" class="flex items-baseline gap-2 text-[11px]">
-            <span class="w-14 shrink-0 text-ink-faint">{{ s.daoName }}</span>
-            <span class="w-12 shrink-0 font-kai text-ink-soft">{{ s.name }}</span>
-            <span class="w-12 shrink-0" :class="s.stage === '生疏' ? 'text-ink-faint' : 'text-jade'">{{ s.stage }}</span>
-            <span class="min-w-0 text-[10px] leading-relaxed text-ink-faint">{{ s.desc }}</span>
-          </p>
-        </div>
-      </div>
-      <div v-if="recipes.length" class="max-h-64 space-y-2 overflow-y-auto">
+      <!--
+        方子列表不再自带滚动框:弹窗正文本身就是滚动容器,两层滚动叠在一起时,
+        内层底边会把下一张卡片切得只剩一条圆角,玩家看不出还能滚(议题 #21)。
+      -->
+      <div v-if="recipes.length" class="space-y-2">
         <div v-for="r in recipes" :key="r.def.id" class="card-ink px-3.5 py-2.5">
-          <div class="flex items-center gap-3">
-            <GameIcon :name="r.def.icon" :size="18" :style="{ color: qualityDef(r.def.quality).color }" />
+          <!--
+            信息在上、操作在下。从前「把握」与两枚按钮并排挂在右侧、宽度写死,
+            加了「连炼 ×5」之后右列更宽,窄屏上左列只剩两个字宽,丹名被压成竖排(议题 #21)。
+          -->
+          <div class="flex items-start gap-2.5">
+            <GameIcon :name="r.def.icon" :size="18" class="mt-px shrink-0" :style="{ color: qualityDef(r.def.quality).color }" />
             <div class="min-w-0 grow">
-              <p class="flex items-center gap-2">
-                <span class="font-kai text-[13px] text-ink">{{ r.def.name }}</span>
-                <span class="text-[10px] text-ink-faint">{{ r.able.rank }} 阶</span>
-                <span v-if="r.able.overReach > 0" class="text-[10px] text-cinnabar">越阶 {{ r.able.overReach }}</span>
+              <p class="flex flex-wrap items-baseline gap-x-2">
+                <span class="whitespace-nowrap font-kai text-[13px] text-ink">{{ r.def.name }}</span>
+                <span class="whitespace-nowrap text-[10px] text-ink-faint">{{ r.able.rank }} 阶</span>
+                <span v-if="r.able.overReach > 0" class="whitespace-nowrap text-[10px] text-cinnabar">越阶 {{ r.able.overReach }}</span>
               </p>
               <p class="text-[11px] text-ink-faint tabular">灵草×{{ r.cost.herb }} · 灵石 {{ formatGN(r.cost.stone) }}</p>
               <!-- 炼出来是什么:方子清单此前只报代价与把握,不报成品 -->
               <p class="text-[10px] leading-relaxed text-azure/80">{{ pillFuncText(r.def) }}</p>
-            </div>
-            <div class="shrink-0 text-right">
-              <p class="tabular text-[13px]" :class="rateClass(r.able.successRate)">{{ formatPercent(r.able.successRate) }}</p>
-              <p class="text-[10px] text-ink-faint">把握</p>
-            </div>
-            <div class="flex shrink-0 flex-col gap-1">
-              <!-- 玩家反馈「批量炼丹」:材料够几炉就连开几炉,结果与连点一致 -->
-              <button class="btn-seal shrink-0 !px-3 !py-1.5 !text-[12px]" @click="craftPill(r.def.id)">炼制</button>
-              <button class="btn-ghost shrink-0 !px-3 !py-1 !text-[11px]" @click="craftPillBatch(r.def.id, 5)">连炼 ×5</button>
+              <p v-for="w in r.able.weakness" :key="w" class="mt-0.5 text-[10px] text-ink-faint">· {{ w }}</p>
             </div>
           </div>
-          <p v-for="w in r.able.weakness" :key="w" class="mt-1 pl-7 text-[10px] text-ink-faint">· {{ w }}</p>
+          <div class="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+            <p class="whitespace-nowrap text-[10px] text-ink-faint">
+              把握
+              <span class="tabular text-[13px]" :class="rateClass(r.able.successRate)">{{ formatPercent(r.able.successRate) }}</span>
+            </p>
+            <div class="ml-auto flex shrink-0 gap-1.5">
+              <!-- 玩家反馈「批量炼丹」:材料够几炉就连开几炉,结果与连点一致 -->
+              <button class="btn-ghost !px-3 !py-1.5 !text-[11px]" @click="craftPillBatch(r.def.id, 5)">连炼 ×5</button>
+              <button class="btn-seal !px-3 !py-1.5 !text-[12px]" @click="craftPill(r.def.id)">炼制</button>
+            </div>
+          </div>
         </div>
       </div>
       <p v-else class="px-1 py-6 text-center text-[11px] leading-relaxed text-ink-faint">
@@ -310,6 +308,22 @@
         <br />
         <span class="text-[10px]">多采多看多打听,方子自会找上门来</span>
       </p>
+      <!--
+        百工技艺:做得多就精。技艺一直在影响成丹,却从不显示 —— 玩家看不到自己在长。
+        排在方子之后:九项技艺在窄屏上要占半屏,放在前面会把方子压到折叠线以下。
+        说明一栏至少留 9 个字宽,不够就整段换到下一行,不再被三列定宽挤成竖排。
+      -->
+      <div v-if="skillRows.length" class="mt-3 rounded-md bg-paper-deep/60 px-3 py-2">
+        <p class="text-[10px] text-ink-faint">技艺(按道分,做得多就精)</p>
+        <div class="mt-1 space-y-1">
+          <p v-for="s in skillRows" :key="s.id" class="flex flex-wrap items-baseline gap-x-2 text-[11px]">
+            <span class="w-14 shrink-0 text-ink-faint">{{ s.daoName }}</span>
+            <span class="w-12 shrink-0 font-kai text-ink-soft">{{ s.name }}</span>
+            <span class="w-12 shrink-0" :class="s.stage === '生疏' ? 'text-ink-faint' : 'text-jade'">{{ s.stage }}</span>
+            <span class="min-w-[9em] flex-1 text-[10px] leading-relaxed text-ink-faint">{{ s.desc }}</span>
+          </p>
+        </div>
+      </div>
       <template #footer>
         <button class="btn-seal w-full" @click="craftOpen = false">收 炉</button>
       </template>
@@ -636,11 +650,15 @@
     })
   )
 
-  /** 把握度配色:七成以上放心开炉,三成以下是在赌 */
+  /**
+   * 把握度配色:七成以上放心开炉,三成以下是在赌。
+   * 色名只能用主题里有的 token —— 此前写的 jade-ink / crimson-ink 不存在,
+   * 产物里不生成这两条类,高低两档一直没上色(palette.spec 现有判据守着)。
+   */
   function rateClass(rate: number): string {
-    if (rate >= 0.7) return 'text-jade-ink'
+    if (rate >= 0.7) return 'text-jade'
     if (rate >= 0.3) return 'text-gold-ink'
-    return 'text-crimson-ink'
+    return 'text-cinnabar'
   }
 
   const materialRows = computed(() => [

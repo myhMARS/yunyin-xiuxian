@@ -151,6 +151,27 @@ function filesMatching(dir: string, pattern: RegExp, ext: RegExp): string[] {
   return hits
 }
 
+/** 色系首段(ink / paper / jade …):判断一个工具类后缀「像不像色名」 */
+const FAMILIES = new Set([...TOKENS].map(t => t.split('-')[0]!))
+/** 颜色工具类前缀 + 后缀名;后缀后面只能跟分隔符或 /透明度 */
+const COLOR_UTILITY =
+  /(?<![\w-])(?:text|bg|border(?:-[trblxyse])?|ring(?:-offset)?|outline|decoration|divide|from|via|to|fill|stroke|accent|caret|placeholder)-([a-z]+(?:-[a-z]+)*)(?=[\s"'`/:)\]},]|$)/g
+
+/** 一段源码里引用了、色板里却没有的色名(注释里提到的不算) */
+function unknownColorRefs(src: string): string[] {
+  const code = src
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+  const out: string[] = []
+  for (const m of code.matchAll(COLOR_UTILITY)) {
+    const name = m[1]!
+    const looksLikeColor = FAMILIES.has(name.split('-')[0]!) || name.endsWith('-ink')
+    if (looksLikeColor && !TOKENS.has(name)) out.push(m[0])
+  }
+  return out
+}
+
 describe('调色板 · 一份事实源', () => {
   it('浅色/夜间两套主题的 token 一一对应(夜间只覆盖通道值,不许只在一边定义)', () => {
     expect([...DARK.keys()].sort()).toEqual([...LIGHT.keys()].sort())
@@ -174,6 +195,34 @@ describe('调色板 · 一份事实源', () => {
         seen.set(key, name)
       }
     }
+  })
+
+  /*
+   * 模板与脚本里引用的色名必须是已定义的 token。
+   *
+   * 写错一个色名不会报错:产物里只是不生成那条类,文字静默退回继承色。
+   * 开炉弹窗的「把握」写过 text-jade-ink / text-crimson-ink(主题里根本没有),
+   * 高低两档从首次导入起就没上过色,直到议题 #21 改版时才被看见。
+   * 只认「像色名」的写法(首段是已有色系,或以 -ink 结尾),text-left / bg-linear-to-b
+   * 这类非颜色工具类不在此列,故不会误伤。
+   */
+  it('源码里引用的色名都在色板里(写错名字,产物里那条类不生成、颜色静默失效)', () => {
+    expect(unknownColorRefs('class="text-ink-faint bg-paper-deep/60 border-cinnabar/40"'), '合法写法不许误报').toEqual([])
+    // 故障注入:正是开炉弹窗写过的那两枚
+    expect(unknownColorRefs(`return 'text-jade-ink'`)).toEqual(['text-jade-ink'])
+    expect(unknownColorRefs('<p class="text-crimson-ink">')).toEqual(['text-crimson-ink'])
+    const offenders: string[] = []
+    const walk = (d: string): void => {
+      for (const entry of readdirSync(d, { withFileTypes: true })) {
+        const path = resolve(d, entry.name)
+        if (entry.isDirectory()) walk(path)
+        else if (/\.(vue|ts)$/.test(entry.name) && !entry.name.endsWith('.spec.ts')) {
+          for (const hit of unknownColorRefs(readFileSync(path, 'utf-8'))) offenders.push(`${path.slice(ROOT.length + 1)} → ${hit}`)
+        }
+      }
+    }
+    walk(resolve(ROOT, 'src'))
+    expect(offenders, '引用了色板里没有的色名').toEqual([])
   })
 })
 

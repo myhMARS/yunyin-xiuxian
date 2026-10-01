@@ -1025,6 +1025,29 @@ html[data-theme='dark'] .btn-seal {
   transform: scale(0.97);
 }
 
+/*
+ * 弹窗正文的上下渐隐(BaseModal):那一头还有内容时才出现。
+ * 颜色走 --color-paper-rgb,夜间主题自动跟随;渐变终点写成同色零透明,
+ * 不用 transparent —— 老内核会按 rgba(0,0,0,0) 插值,中段发灰。
+ * z-index 压过正文里自带 z-10 的卡片;不吃点击,底下的按钮照常可点。
+ */
+.modal-edge {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1.5rem;
+  pointer-events: none;
+  z-index: 20;
+}
+.modal-edge-top {
+  top: 0;
+  background: linear-gradient(to bottom, rgb(var(--color-paper-rgb)), rgb(var(--color-paper-rgb) / 0));
+}
+.modal-edge-bottom {
+  bottom: 0;
+  background: linear-gradient(to top, rgb(var(--color-paper-rgb)), rgb(var(--color-paper-rgb) / 0));
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

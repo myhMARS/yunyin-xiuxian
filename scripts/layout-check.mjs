@@ -73,6 +73,8 @@
  *      窄屏上句号就会独自占一行 —— 量的是渲染结果,比在源码里认标点准。
  *   三十六 敌人卡最挤的一档:名字最长 9 字 + 满标签(首领/宿敌/3 特性)+ 星级。
  *      巡页用的档里敌人名字都短、认知层为 0(特性根本不显示),这一档从前没被量过。
+ *   三十七 开炉炼丹弹窗(议题 #21):真打开量 —— 丹名单行、信息栏不被右列挤窄、
+ *      正文之外没有第二个滚动盒、正文超长时上下有渐隐提示。
  *
  * 判据是「横向溢出」这一类——它正是窄屏上最常见的排版事故。
  * 说明:这是无头 Chromium 的视口模拟,不是真机;字体渲染与安全区(刘海/手势条)
@@ -2625,6 +2627,159 @@ for (const vp of VIEWPORTS) {
     for (const p of problemsOf(info)) failures.push(`[320-battle] /adventure → ${p}`)
   }
   if (pageErrors.length) failures.push(`[320-battle] 敌人卡场景页面异常:${[...new Set(pageErrors)].join(' | ')}`)
+  await ctx.close()
+}
+
+// ---- 第三十七件事:开炉炼丹弹窗的窄屏排版(议题 #21) ----
+/*
+ * 这扇弹窗从没被打开量过:巡页只量页面,弹窗不开就不存在;夹具也没有丹方,
+ * 就算打开也只是「尚无丹方」的空态。于是批量炼丹加了「连炼 ×5」之后,右侧按钮列变宽,
+ * 窄屏上丹名被压成竖排,方子列表自带的滚动框把下一张卡片切成一条圆角 —— 全绿通过,
+ * 由玩家先看到(议题 #21)。
+ *
+ * 夹具备六张方子(含五字丹名「玄冥护体丹」「千年延寿丹」)与几项练过的技艺,三档宽度各开一次:
+ *   一 通用尺子(竖排 / 量词分家 / 孤字标点 / 可点元素 ≥28px)对开着的弹窗再量一遍;
+ *   二 丹名单行,方子信息栏不窄于卡片的六成(右侧不许再并排一列定宽的东西);
+ *   三 弹窗里除正文外不许再有第二个会滚的盒子(两层滚动,内层底边就会切卡片);
+ *   四 正文超长时底边要有渐隐提示;滚到底后底边提示消失、顶边提示出现。
+ */
+for (const vp of [
+  { width: 320, height: 568, tag: '320', dpr: 2 },
+  { width: 375, height: 812, tag: '375', dpr: 3 },
+  { width: 390, height: 844, tag: '390', dpr: 3 }
+]) {
+  const tag = `[${vp.tag}-craft]`
+  const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.dpr, isMobile: true, hasTouch: true })
+  const SAVE_SECRET = 'yunyin-xiuxian::dao-in-the-clouds::v1'
+  const enc = o => CryptoJS.AES.encrypt(JSON.stringify(o), SAVE_SECRET).toString()
+  const gn = (m, e) => ({ m, e })
+  const now = Date.now()
+  const slices = {
+    game: { started: true, saveVersion: 2, createdAt: now - 86400000, lastActiveAt: now, totalPlaySec: 600, createRerolls: 8, createProfile: null },
+    player: {
+      name: '开炉自检',
+      major: 4,
+      sub: 2,
+      exp: gn(1, 3),
+      age: 120,
+      dead: false,
+      reincarnation: { count: 0, daoFruit: 0, talents: [], insight: 0, lives: [], vow: null, trial: null, bonds: [] },
+      linggen: { roots: [{ element: 'fire', aptitude: 80 }], gradeName: '单灵根', growthMult: 1.2 }
+    },
+    resources: { spiritStone: gn(3.2, 7), qi: 500, wudao: 50, herb: 2400, ore: 100, page: 10, dust: 40 },
+    inventory: { items: [], equipped: {}, pills: { p_jvqidan: 3 }, artifacts: [], equippedArtifacts: [] },
+    lore: {
+      materialLore: {},
+      materialSeen: {},
+      // 六张方子:一阶到高阶、含两个五字丹名(最长的名字),熟练度各不相同(把握数位数不同)
+      recipeLore: { p_jvqidan: 1, p_huichun: 0.6, p_pojing: 0.4, p_xuanming: 0.3, p_yanshou: 0.5, p_qianshou: 0.2 },
+      blueprintLore: {},
+      skillExp: { herbLore: 400, pairing: 120, condense: 60, nurture: 900, flame: 1500, smithing: 30 },
+      enemyLore: {},
+      enemySeen: {},
+      studyFrac: 0,
+      seeded: true
+    },
+    settings: { privacyAccepted: true, sfxOn: false, musicOn: false, musicVol: 0, sfxVol: 0, reduceMotion: true, battleSpeed: 4, decomposeRanks: [], smartKeep: { enabled: false, minQuality: 3, keepCoreAffix: true, keepComboPiece: true }, theme: 'dark' }
+  }
+  await ctx.addInitScript(
+    data => {
+      for (const [k, v] of Object.entries(data)) localStorage.setItem(k, v)
+    },
+    Object.fromEntries(Object.entries(slices).map(([k, v]) => [`yunyin.${k}`, enc(v)]))
+  )
+  const page = await ctx.newPage()
+  const pageErrors = []
+  watchPageErrors(page, pageErrors)
+  await page.goto(INDEX + '#/inventory', { waitUntil: 'load' })
+  await page.waitForTimeout(1200)
+  await clearOverlays(page)
+  await page.getByRole('tab', { name: '丹药' }).first().click({ timeout: 3000 }).catch(() => {})
+  await page.waitForTimeout(400)
+  await page.locator('main button', { hasText: '开炉炼丹' }).first().click({ timeout: 3000 }).catch(() => {})
+  await page.waitForTimeout(700)
+  checked += 1
+  if (SHOTS) await page.screenshot({ path: `${SHOTS_DIR}/craft-${vp.tag}-top.png` }).catch(() => {})
+
+  const craft = await page.evaluate(() => {
+    const panel = [...document.querySelectorAll('.modal-panel')].find(p => (p.querySelector('h3')?.textContent || '').includes('开炉'))
+    if (!panel) return null
+    const body = panel.querySelector('[data-modal-body]')
+    const cards = [...panel.querySelectorAll('.card-ink')]
+    const names = cards.map(card => {
+      const name = card.querySelector('.font-kai')
+      const info = card.querySelector('.min-w-0.grow')
+      const nr = name?.getBoundingClientRect()
+      const lh = name ? parseFloat(getComputedStyle(name).lineHeight) || 16 : 16
+      return {
+        label: (name?.textContent || '').trim(),
+        lines: nr ? Math.round(nr.height / lh) : 0,
+        infoRatio: info ? info.getBoundingClientRect().width / card.getBoundingClientRect().width : 0
+      }
+    })
+    // 正文之外还会滚的盒子:overflow-y 是 auto/scroll,且内容确实超出了它
+    const nestedScrollers = [...panel.querySelectorAll('*')]
+      .filter(el => el !== body && /(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1)
+      .map(el => `${el.tagName.toLowerCase()}.${String(el.className).split(' ').slice(0, 3).join('.')}(${el.clientHeight}/${el.scrollHeight}px)`)
+    return { hasBody: !!body, cards: names, nestedScrollers }
+  })
+
+  if (!craft) {
+    failures.push(`${tag} 开炉场景:点了「开炉炼丹」弹窗没出来`)
+  } else if (craft.cards.length < 6) {
+    failures.push(`${tag} 开炉场景:方子只画出 ${craft.cards.length} 张(夹具备了 6 张,lore 分片没读出来?)`)
+  } else {
+    for (const c of craft.cards) {
+      if (c.lines > 1) failures.push(`${tag} 丹名被折成 ${c.lines} 行:«${c.label}»`)
+      if (c.infoRatio < 0.6) failures.push(`${tag} 方子信息栏只占卡片 ${Math.round(c.infoRatio * 100)}% 宽(右侧又并排了定宽的列):«${c.label}»`)
+    }
+    if (craft.nestedScrollers.length) failures.push(`${tag} 弹窗正文里还套着会滚的盒子:${craft.nestedScrollers.join(' | ')}`)
+    if (!craft.hasBody) failures.push(`${tag} 找不到弹窗正文(data-modal-body),渐隐判据没跑到东西`)
+
+    // 通用尺子:弹窗开着再量一遍(竖排 / 量词分家 / 孤字 / 过小的可点元素都会落进来)
+    const info = await measurePage(page)
+    for (const p of problemsOf(info)) failures.push(`${tag} 开炉弹窗 → ${p}`)
+    const audit = await auditModalControls(page)
+    if (audit?.small.length) failures.push(`${tag} 开炉弹窗里可点元素过小:${audit.small.join(' | ')}`)
+    if (audit?.unnamed.length) failures.push(`${tag} 开炉弹窗里有 ${audit.unnamed.length} 个无名控件`)
+
+    // 渐隐提示:正文超长时,在顶 → 只亮底边;滚到底 → 只亮顶边
+    const edgeState = () =>
+      page.evaluate(() => {
+        const panel = [...document.querySelectorAll('.modal-panel')].find(p => (p.querySelector('h3')?.textContent || '').includes('开炉'))
+        const body = panel?.querySelector('[data-modal-body]')
+        const shown = sel => {
+          const el = panel?.querySelector(sel)
+          return !!el && getComputedStyle(el).display !== 'none'
+        }
+        return {
+          overflow: body ? body.scrollHeight - body.clientHeight : 0,
+          top: shown('.modal-edge-top'),
+          bottom: shown('.modal-edge-bottom'),
+          found: !!panel?.querySelector('.modal-edge-top') && !!panel?.querySelector('.modal-edge-bottom')
+        }
+      })
+    const atTop = await edgeState()
+    if (!atTop.found) {
+      failures.push(`${tag} 开炉弹窗没有渐隐提示层(.modal-edge-top / .modal-edge-bottom)`)
+    } else if (atTop.overflow <= 2) {
+      failures.push(`${tag} 开炉场景:正文没超长(${atTop.overflow}px),渐隐判据没跑到东西 —— 夹具方子太少?`)
+    } else {
+      if (!atTop.bottom) failures.push(`${tag} 正文下面还有 ${atTop.overflow}px,底边却没有渐隐提示`)
+      if (atTop.top) failures.push(`${tag} 正文在顶上,顶边却亮着渐隐提示`)
+      await page.evaluate(() => {
+        const panel = [...document.querySelectorAll('.modal-panel')].find(p => (p.querySelector('h3')?.textContent || '').includes('开炉'))
+        const body = panel?.querySelector('[data-modal-body]')
+        if (body) body.scrollTop = body.scrollHeight
+      })
+      await page.waitForTimeout(300)
+      const atBottom = await edgeState()
+      if (atBottom.bottom) failures.push(`${tag} 滚到底了,底边渐隐提示还亮着`)
+      if (!atBottom.top) failures.push(`${tag} 滚到底了,顶边没有渐隐提示(上面还有内容)`)
+    }
+    if (SHOTS) await page.screenshot({ path: `${SHOTS_DIR}/craft-${vp.tag}-bottom.png` }).catch(() => {})
+  }
+  if (pageErrors.length) failures.push(`${tag} 开炉场景页面异常:${[...new Set(pageErrors)].join(' | ')}`)
   await ctx.close()
 }
 
