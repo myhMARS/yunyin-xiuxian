@@ -224,6 +224,37 @@ describe('调色板 · 一份事实源', () => {
     walk(resolve(ROOT, 'src'))
     expect(offenders, '引用了色板里没有的色名').toEqual([])
   })
+
+  /*
+   * 斜杠透明度只用配置里有的档位。
+   *
+   * Tailwind 3.4 的 /N 走 theme.opacity:默认步长 5,外加 tailwind.config.js 里补的几档。
+   * 写了不在其中的(/12、/14、/3)也不报错,只是不生成 —— 底色直接没了,
+   * border-t 退成当前文字色(装备详情的词条分隔线因此一直是亮线)。曾散落 10 处。
+   * 方括号写法(bg-ink/[0.03])是任意值,不在此列。
+   */
+  it('斜杠透明度只用配置里有的档位(写了没有的,那条类不生成)', () => {
+    const extended = /opacity:\s*\{([^}]*)\}/.exec(TAILWIND)?.[1] ?? ''
+    const steps = new Set([...Array.from({ length: 21 }, (_, i) => i * 5), ...[...extended.matchAll(/(\d+):/g)].map(m => Number(m[1]))])
+    expect(steps.has(4) && steps.has(8), 'tailwind.config.js 里补的透明度档位没读到').toBe(true)
+    const OPACITY = /(?<![\w-])((?:text|bg|border(?:-[trblxy])?|ring|from|via|to|fill|stroke|accent|divide|outline|decoration|shadow)-[a-z]+(?:-[a-z]+)*)\/(\d{1,3})(?![\d\]])/g
+    const badSteps = (src: string): string[] =>
+      [...src.matchAll(OPACITY)].filter(m => !steps.has(Number(m[2]))).map(m => `${m[1]}/${m[2]}`)
+    // 故障注入:正是曾经写过的那几档
+    expect(badSteps('class="bg-jade/12 border-violet-ink/12 bg-ink/3 bg-ink/4 border-ink/15"')).toEqual(['bg-jade/12', 'border-violet-ink/12', 'bg-ink/3'])
+    const offenders: string[] = []
+    const walk = (d: string): void => {
+      for (const entry of readdirSync(d, { withFileTypes: true })) {
+        const path = resolve(d, entry.name)
+        if (entry.isDirectory()) walk(path)
+        else if (/\.(vue|ts)$/.test(entry.name) && !entry.name.endsWith('.spec.ts')) {
+          for (const hit of badSteps(readFileSync(path, 'utf-8'))) offenders.push(`${path.slice(ROOT.length + 1)} → ${hit}`)
+        }
+      }
+    }
+    walk(resolve(ROOT, 'src'))
+    expect(offenders, '这些透明度档位不生成;改用步长 5,或在 tailwind.config.js 的 opacity 里补').toEqual([])
+  })
 })
 
 describe('调色板 · 承载文字的色都过线', () => {

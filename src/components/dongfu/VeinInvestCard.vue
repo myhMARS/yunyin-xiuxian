@@ -115,10 +115,10 @@
    * dot/bar 由进度条与列账用,seal/row 行内即刻生效。
    */
   const TONES: Record<VeinId, { seal: string; row: string; dot: string; bar: string }> = {
-    gather: { seal: 'bg-jade/12 text-jade', row: 'border-jade/35 bg-jade/5', dot: 'bg-jade', bar: 'bg-jade' },
-    craft: { seal: 'bg-cinnabar/12 text-cinnabar', row: 'border-cinnabar/35 bg-cinnabar/6', dot: 'bg-cinnabar', bar: 'bg-cinnabar' },
-    alchemy: { seal: 'bg-gold-ink/12 text-gold-ink', row: 'border-gold-ink/35 bg-gold-ink/6', dot: 'bg-gold-ink', bar: 'bg-gold-ink' },
-    insight: { seal: 'bg-violet-ink/14 text-violet-ink', row: 'border-violet-ink/40 bg-violet-ink/7', dot: 'bg-violet-ink', bar: 'bg-violet-ink' }
+    gather: { seal: 'bg-jade/10 text-jade', row: 'border-jade/35 bg-jade/5', dot: 'bg-jade', bar: 'bg-jade' },
+    craft: { seal: 'bg-cinnabar/10 text-cinnabar', row: 'border-cinnabar/35 bg-cinnabar/6', dot: 'bg-cinnabar', bar: 'bg-cinnabar' },
+    alchemy: { seal: 'bg-gold-ink/10 text-gold-ink', row: 'border-gold-ink/35 bg-gold-ink/6', dot: 'bg-gold-ink', bar: 'bg-gold-ink' },
+    insight: { seal: 'bg-violet-ink/15 text-violet-ink', row: 'border-violet-ink/40 bg-violet-ink/7', dot: 'bg-violet-ink', bar: 'bg-violet-ink' }
   }
 
   const investCost = computed(() => veinPointCost())

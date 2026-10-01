@@ -176,7 +176,7 @@
       <p class="mt-1 flex items-center gap-1.5 text-[11px] text-ink-faint tabular">
         耗灵气 {{ formatNum(btInfo.qiCost) }}
         <!-- 大关/大槛落在小印章上,与全页「静/备/主/秘」一套印章语言呼应,不再是一行朱砂裸字 -->
-        <span v-if="btInfo.needTribulation" class="rounded bg-violet-ink/12 px-1.5 py-0.5 text-[10px] leading-none text-violet-ink">
+        <span v-if="btInfo.needTribulation" class="rounded bg-violet-ink/10 px-1.5 py-0.5 text-[10px] leading-none text-violet-ink">
           大关 · 渡劫
         </span>
         <span v-else-if="btInfo.isMajor" class="rounded bg-ink/6 px-1.5 py-0.5 text-[10px] leading-none text-ink-faint">
@@ -271,7 +271,7 @@
         </button>
       </div>
       <!-- 空态:什么状态都没有时,告诉玩家这个区域存在、以及怎么点亮它 -->
-      <div v-else class="mt-2 flex items-center gap-2 rounded-md border border-dashed border-ink/15 bg-ink/3 px-3 py-2">
+      <div v-else class="mt-2 flex items-center gap-2 rounded-md border border-dashed border-ink/15 bg-ink/4 px-3 py-2">
         <GameIcon name="sparkles" :size="12" class="shrink-0 text-ink-faint" />
         <span class="text-[10px] leading-relaxed text-ink-faint">暂无增益加身 —— 服丹药 · 修功法 · 遇奇缘,都会为这段道途续上状态。</span>
       </div>

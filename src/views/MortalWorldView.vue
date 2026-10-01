@@ -180,7 +180,7 @@
       const bUnlocked = unlocked(b.nodeId)
       segs.push({
         points: `${a.x},${a.y} ${b.x},${b.y}`,
-        cls: bCleared ? 'text-jade/60' : bUnlocked ? 'text-azure/55' : 'text-ink/12',
+        cls: bCleared ? 'text-jade/60' : bUnlocked ? 'text-azure/55' : 'text-ink/15',
         dash: bCleared || bUnlocked ? '' : '4 3'
       })
     }

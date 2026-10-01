@@ -40,7 +40,7 @@
           <!-- 灵兽印章:从一行小图标长成一块色底印章;相伴时转玉色光晕 -->
           <span
             class="grid h-10 w-10 shrink-0 place-items-center rounded-md transition-colors"
-            :class="row.active ? 'bg-jade/12 text-jade' : 'bg-ink/5 text-ink-soft'"
+            :class="row.active ? 'bg-jade/10 text-jade' : 'bg-ink/5 text-ink-soft'"
           ><GameIcon :name="row.def.icon" :size="20" /></span>
           <div class="min-w-0 grow">
             <p class="flex flex-wrap items-center gap-1.5">
