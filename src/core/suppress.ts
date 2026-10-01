@@ -243,7 +243,8 @@ export function settleSuppressedRegions(dt: number, service: RandomService = rng
     // 测试只能去 mock 全局 Math.random,而 rng 在构造时就把原函数抓走了 —— 注入才是可测的那条路
     const equipCount = Math.floor(equipChance) + (service.chance(equipChance - Math.floor(equipChance)) ? 1 : 0)
     for (let i = 0; i < equipCount; i += 1) {
-      const equip = generateEquipment(region.tier, service, { luck: 0, minQualityRank: 0 })
+      // 不传品质下限:传了(哪怕是 0)品质窗口就失效,镇压产出会比历练掉落更容易出低阶高品
+      const equip = generateEquipment(region.tier, service, { luck: 0 })
       const res = acquireEquipment(equip, { quiet: true }) // quiet=true 避免镇压收益刷屏
       // 所得清单如实记下每一件产出:入包与否都列,未入包(自动回收/满包化尘)标注回收
       total.equipment.push({ name: equipmentTemplate(equip.templateId)?.name ?? '未知', quality: equip.quality, recycled: !res.bagged })

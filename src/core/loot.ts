@@ -257,7 +257,9 @@ export function afterWin(region: RegionDef, rewardMult: number, isBoss: boolean)
   const equipChance = EQUIP_DROP_CHANCE * rewardMult * (1 + modOf(mods, 'dropRate')) * (isBoss ? 2.5 : 1)
   for (let i = 0; i < doubled; i += 1) {
     if (rng.chance(Math.min(0.9, equipChance)) || (isBoss && i === 0)) {
-      const inst = generateEquipment(tier, rng, { luck, minQualityRank: isBoss ? 1 : 0 })
+      // 普通战不传品质下限:传了(哪怕是 0)就算「显式下限」,品质窗口整个失效 ——
+      // 在线因此比离线、比审计多掉一截低阶高品。只有首领是剧情给的例外
+      const inst = generateEquipment(tier, rng, isBoss ? { luck, minQualityRank: 1 } : { luck })
       lines.push(acquireEquipment(inst).line)
       items += 1
     }
