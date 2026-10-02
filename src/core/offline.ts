@@ -26,7 +26,7 @@ import {
 import { makeEnemySnap, resolveCombat, sampleWinRate } from './combat'
 import { buildPlayerSnap } from './playerSnap'
 import { generateEquipment } from './equipGen'
-import { acquireEquipment, afterWin } from './loot'
+import { onAcquire, acquireEquipment, afterWin } from './loot'
 import { autoResolveEvent, regionEventPoolFor } from './eventEngine'
 import { clearRegionAndUnlockNext, exploreEventChance, dangerFactorFor, explorationRules } from './exploration'
 import { currentRegionEvent, regionEventDef } from './regionEvent'
@@ -94,8 +94,24 @@ export function settleOffline(nowMs: number): OfflineSummary | null {
   const effSec = capSec * OFFLINE_EFFICIENCY
   const notes: string[] = []
   const equipmentGained: OfflineSummary['equipment'] = []
-  /** 离线期间未入包(自动回收/满包化尘)装备化作的器灵尘 */
+  /** 离线期间化尘所得的器灵尘(自动回收/满包化尘/腾位化掉的旧件) */
   let recycledDust = 0
+  let evicted = 0
+  /*
+   * 离线期间的每一次装备入账(历练掉落、镇压产出、际遇奖励)都记进这一本账。
+   * 从前各条路各记一笔:际遇奖励的装备从没进过归来卷轴;腾位时只看 bagged,
+   * 被挤掉的旧件化出的尘与件数都漏报。入包的件带 uid(归来卷轴点开看详情),化尘的不带。
+   */
+  const stopLedger = onAcquire((inst, res) => {
+    equipmentGained.push({
+      name: equipmentTemplate(inst.templateId)?.name ?? '未知',
+      quality: inst.quality,
+      recycled: !res.bagged,
+      uid: res.bagged ? inst.uid : undefined
+    })
+    recycledDust += res.dust
+    if (res.evicted) evicted += 1
+  })
 
   // ---- 修炼 ----
   const expBefore = { ...player.exp }
@@ -121,10 +137,6 @@ export function settleOffline(nowMs: number): OfflineSummary | null {
   if (suppressYield && !isZero(suppressYield.stone)) {
     const extra = suppressYield.resources.map(r => `${r.name} +${r.amount}`).join(' · ')
     notes.push(`镇压诸域仍有余韵:灵石 +${formatGN(suppressYield.stone)}${extra ? ` · ${extra}` : ''}`)
-    for (const eq of suppressYield.equipment) {
-      equipmentGained.push(eq)
-    }
-    recycledDust += suppressYield.recycledDust
   }
 
   // ---- 历练挂机 ----
@@ -217,17 +229,8 @@ export function settleOffline(nowMs: number): OfflineSummary | null {
         for (let i = 0; i < realCount; i += 1) {
           // 灵兽性格同样管离线掉落:贪宝更易稀出,谨慎稍稍寻常(与在线 afterWin 同源)
           const inst = generateEquipment(region.tier, rng, { luck: modOf(mods, 'luck') + personalityEffects(player.petId).dropLuck })
-          const res = acquireEquipment(inst, { quiet: true })
-          // 所得清单如实记下每一件产出:入包与否都列,未入包(自动回收/满包化尘)标注回收;
-          // 器灵尘按 acquire 返回值记账,不再依赖对行囊作 findItem 二次判定。
-          // 入包的件带上实例 uid —— 归来弹窗点它要开装备详情;已化尘的件已不在包,不配 uid
-          equipmentGained.push({
-            name: equipmentTemplate(inst.templateId)?.name ?? '未知',
-            quality: inst.quality,
-            recycled: !res.bagged,
-            uid: res.bagged ? inst.uid : undefined
-          })
-          if (!res.bagged) recycledDust += res.dust
+          // 入账清单、化尘与腾位由开头订阅的那本账统一记(onAcquire)
+          acquireEquipment(inst, { quiet: true })
         }
         trip.items += realCount
         if (equipCount > realCount) {
@@ -313,6 +316,7 @@ export function settleOffline(nowMs: number): OfflineSummary | null {
   // ---- Buff 过期 ----
   cultivation.pruneBuffs(nowMs)
 
+  stopLedger()
   const summary: OfflineSummary = {
     seconds: dtSec,
     cappedSeconds: capSec,
@@ -329,6 +333,7 @@ export function settleOffline(nowMs: number): OfflineSummary | null {
     events,
     equipment: equipmentGained,
     recycledDust,
+    evicted,
     notes
   }
   if (player.expFull && !player.atMaxRealm) notes.push(breakthroughReadyNote(breakthroughInfo().needTribulation))

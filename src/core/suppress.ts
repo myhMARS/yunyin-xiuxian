@@ -174,7 +174,7 @@ export function suppressRateFor(regionId: string): SuppressRate | null {
 export interface SuppressedYield {
   stone: GNum
   equipment: { name: string; quality: QualityId; recycled?: boolean; uid?: string }[]
-  /** 未入包(自动回收/满包化尘)装备化作的器灵尘(由 acquireEquipment 记账) */
+  /** 化尘所得的器灵尘(自动回收/满包化尘/腾位化掉的旧件;由 acquireEquipment 记账) */
   recycledDust: number
   /** 各地界的物产累计(灵草/玄铁/残页/器灵尘) */
   resources: { id: SuppressResource; name: string; amount: number }[]
@@ -253,7 +253,8 @@ export function settleSuppressedRegions(dt: number, service: RandomService = rng
         recycled: !res.bagged,
         uid: res.bagged ? equip.uid : undefined
       })
-      if (!res.bagged) total.recycledDust += res.dust
+      // 腾位时新件入了包、旧件化了尘:那份尘与那件旧物都要记上,只看 bagged 会漏报
+      total.recycledDust += res.dust
     }
   }
 

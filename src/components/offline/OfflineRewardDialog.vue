@@ -108,7 +108,8 @@
     if (s.events > 0) road.push({ icon: 'star', label: '途中际遇', value: `${s.events} 次` })
     // 自动回收的产出不入行囊、只化器灵尘,单独在「路上」成行,免得玩家以为掉了没捡到
     if (s.recycledDust > 0) {
-      const recycled = s.equipment.filter(e => e.recycled).length
+      // 件数含腾位化掉的旧件:尘是它们一起化出来的,件数少算就对不上
+      const recycled = s.equipment.filter(e => e.recycled).length + s.evicted
       road.push({ icon: 'sparkles', label: '回收化尘', value: `${recycled} 件 · 器灵尘+${s.recycledDust}` })
     }
     if (road.length) out.push({ label: '途中际遇', list: road })

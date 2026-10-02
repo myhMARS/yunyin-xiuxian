@@ -13,9 +13,26 @@
  *
  * 故障注入:把 summary.qi / summary.ageYears 去掉,或把 ageYears 记成 0,本文件立刻红。
  */
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+
+/** 记下每一次入账的结果:腾位那条用例要拿它对账(透传,不改行为) */
+const acquired = vi.hoisted(() => [] as { bagged: boolean; evicted: boolean; dust: number }[])
+vi.mock('./loot', async orig => {
+  const mod = await orig<typeof import('./loot')>()
+  return {
+    ...mod,
+    acquireEquipment: (...args: Parameters<typeof mod.acquireEquipment>) => {
+      const res = mod.acquireEquipment(...args)
+      acquired.push({ bagged: res.bagged, evicted: res.evicted, dust: res.dust })
+      return res
+    }
+  }
+})
+
 import { settleOffline } from './offline'
+import { salvageOf } from './salvage'
+import { useSettingsStore } from '@/stores/settings'
 import { useGameStore } from '@/stores/game'
 import { usePlayerStore } from '@/stores/player'
 import { useResourcesStore } from '@/stores/resources'
@@ -103,6 +120,30 @@ describe('离线总结 · 变动了多少就报多少', () => {
     }
     // 满包且无智能收纳:没有任何件真的入包,清单里不该再有「可点开」的件
     expect(bagged.length).toBe(0)
+  })
+
+  /**
+   * 智能收纳腾位:新件值得留、包已满时,挤掉包里最差的一件旧物化尘再入包。
+   * 此时入账结果是 bagged:true,而 dust 记的是那件旧物 —— 结算若只在 !bagged 时计尘,
+   * 归来卷轴就少报了这份尘,件数也少算(审查讨论指出)。
+   * 注入:offline.ts / suppress.ts 改回 `if (!res.bagged) recycledDust += res.dust` → 本条红。
+   */
+  it('智能收纳腾位归来:被挤掉的旧件化出的尘与件数都要报', () => {
+    setupBusySave()
+    const settings = useSettingsStore()
+    settings.smartKeep = { ...settings.smartKeep, enabled: true, minQuality: 1, keepCoreAffix: false, keepComboPiece: false, keepSetPiece: false, keepPerfectRolls: false }
+    const inventory = useInventoryStore()
+    // 塞满凡品旧物(未锁、无投入,收纳判「无缘」可挤);良品以上的新掉落会把它们挤出去
+    const junk = Array.from({ length: BAG_CAPACITY }, (_, i) => ({ uid: `junk${i}`, templateId: 'b_mabu', quality: 'mortal' as const, tier: 1, level: 0, affixes: [] }))
+    inventory.items = junk.map(j => ({ ...j }))
+    acquired.length = 0
+    const summary = settleOffline(Date.now())!
+    const removed = junk.filter(j => !inventory.findItem(j.uid))
+    expect(removed.length, '这一档该有新件把旧物挤出去,否则判据没跑到东西').toBeGreaterThan(0)
+    expect(summary.evicted, '腾位化掉的旧件数').toBe(removed.length)
+    const evictedDust = removed.reduce((sum, j) => sum + salvageOf(j).dust, 0)
+    const producedRecycledDust = acquired.filter(a => !a.bagged).reduce((sum, a) => sum + a.dust, 0)
+    expect(summary.recycledDust, '回收化尘报少了:腾位化掉的旧件没算进去').toBe(producedRecycledDust + evictedDust)
   })
 
   it('60 小时归来:资源差额与摘要逐项对得上,且每项变动都有交代', () => {

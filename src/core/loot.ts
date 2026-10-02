@@ -53,7 +53,12 @@ export interface AcquireResult {
   line: string
   /** 是否真正入了行囊(未入 = 自动化尘或满包化尘) */
   bagged: boolean
-  /** 本次拾取带来的器灵尘增量(化尘时为尘量,入包为 0) */
+  /**
+   * 智能收纳腾位:新件入了包,包里一件旧物化了尘 —— 此时 dust / stone 记的是那件旧物。
+   * 结算账要把它算进「回收化尘」,只看 bagged 就会漏报
+   */
+  evicted: boolean
+  /** 本次拾取化出的器灵尘(新件化尘,或腾位化掉的旧件;单纯入包为 0) */
   dust: number
   /** 本次拾取带来的灵石返还(化尘时可能有 —— 被挤掉的旧件若练过) */
   stone: GNum
@@ -66,7 +71,28 @@ export interface AcquireResult {
  * forceKeep(新手馈赠)不受此闸约束。
  * 入包后若行囊已满,智能收纳开启时,值得收藏的新件可挤掉包内与道无缘者。
  */
+/** 一次装备入账的监听者(离线结算用它把历练、镇压、际遇三条路的入账记成一本账) */
+type AcquireListener = (inst: EquipmentInstance, res: AcquireResult) => void
+const acquireListeners = new Set<AcquireListener>()
+
+/**
+ * 订阅每一次装备入账,返回退订函数。
+ * 离线结算若在各条路上各记一笔,总有一条会漏(际遇奖励的装备就从没进过归来卷轴的账)。
+ */
+export function onAcquire(listener: AcquireListener): () => void {
+  acquireListeners.add(listener)
+  return () => {
+    acquireListeners.delete(listener)
+  }
+}
+
 export function acquireEquipment(inst: EquipmentInstance, opts: { quiet?: boolean; forceKeep?: boolean } = {}): AcquireResult {
+  const res = acquireInto(inst, opts)
+  for (const listener of acquireListeners) listener(inst, res)
+  return res
+}
+
+function acquireInto(inst: EquipmentInstance, opts: { quiet?: boolean; forceKeep?: boolean }): AcquireResult {
   const { quiet = false, forceKeep = false } = opts
   const inventory = useInventoryStore()
   const resources = useResourcesStore()
@@ -89,7 +115,7 @@ export function acquireEquipment(inst: EquipmentInstance, opts: { quiet?: boolea
     resources.addSmall('dust', gain.dust)
     resources.addStone(gain.stone)
     const tail = `化作${salvageYieldText(gain.dust, isZero(gain.stone) ? undefined : formatGN(gain.stone))}`
-    return { line: tail, bagged: false, dust: gain.dust, stone: gain.stone }
+    return { line: tail, bagged: false, evicted: false, dust: gain.dust, stone: gain.stone }
   }
   // 自动回收闸:新件先过裁决,命中回收规则的不占行囊,直接化尘
   const why = !forceKeep && shouldAutoRecycle(inst) ? autoRecycleReason(inst) : null
@@ -110,6 +136,7 @@ export function acquireEquipment(inst: EquipmentInstance, opts: { quiet?: boolea
           return {
             line: `${label}(收纳规则腾位:${equipmentTemplate(evictable.templateId)?.name ?? '旧物'}${evicted.line})`,
             bagged: true,
+            evicted: true,
             dust: evicted.dust,
             stone: evicted.stone
           }
@@ -123,7 +150,7 @@ export function acquireEquipment(inst: EquipmentInstance, opts: { quiet?: boolea
   if (!quiet && q.rank >= 3) {
     ui.toast(`灵光乍现,拾得「${label}」`, 'rare')
   }
-  return { line: label, bagged: true, dust: 0, stone: gnZero() }
+  return { line: label, bagged: true, evicted: false, dust: 0, stone: gnZero() }
 }
 
 /**
