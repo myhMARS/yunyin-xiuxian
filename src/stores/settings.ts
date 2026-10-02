@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { persistConfig } from '@/utils/storage'
 import { asArray, asFiniteNumber, asRecord } from '@/utils/saveShape'
+import { MAX_EQUIP_TIER } from '@/data/equipment'
 
 export const useSettingsStore = defineStore(
   'settings',
@@ -26,6 +27,7 @@ export const useSettingsStore = defineStore(
     const smartKeep = ref<import('@/core/smartKeep').SmartKeepConfig>({
       enabled: false,
       minQuality: 3,
+      keepMinTier: 0,
       keepCoreAffix: true,
       keepComboPiece: true,
       keepPerfectRolls: true,
@@ -59,6 +61,7 @@ export const useSettingsStore = defineStore(
       smartKeep.value = {
         enabled: sk.enabled === true,
         minQuality: Math.floor(asFiniteNumber(sk.minQuality, 3, 0)),
+        keepMinTier: Math.max(0, Math.min(MAX_EQUIP_TIER, Math.floor(asFiniteNumber(sk.keepMinTier, 0, 0)))),
         keepCoreAffix: sk.keepCoreAffix !== false,
         keepComboPiece: sk.keepComboPiece !== false,
         keepPerfectRolls: sk.keepPerfectRolls !== false,
