@@ -10,7 +10,7 @@ import { TALENTS } from '@/data/talents'
 import { TALENT_DRAW_DIV } from '@/data/constants'
 import { lifeThemeDef } from '@/data/lifeThemes'
 import { nextStageAfter, stageAt } from '@/data/samsara'
-import { rollLinggen } from './linggenGen'
+import { rollLinggenForNewLife } from './linggenGen'
 import { collect, track } from './progress'
 import {
   aptitudeFloorNow,
@@ -218,7 +218,7 @@ export function confirmReincarnation(chosenTalentId: string | null, chosenThemeI
 
   // 认知不因转世清零,只按阶补齐:该认得的药,睁眼就该认得
   const recognized = carryLore(stage)
-  player.rebirth(rollLinggen(rng, aptitudeFloorNow()))
+  player.rebirth(rollLinggenForNewLife(rng, aptitudeFloorNow()))
   // 新的一世:上一世的建号草稿作废,「逆天改命」额度归满
   useGameStore().resetCreateDraft()
   // 道途归还天地,道源与道痕随神魂不灭

@@ -70,7 +70,7 @@
   import { computed, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { rng } from '@/utils/random'
-  import { rollLinggen } from '@/core/linggenGen'
+  import { rollLinggenForNewLife } from '@/core/linggenGen'
   import { rootElements, tendencyLines } from '@/core/linggenAffinity'
   import { randomDaoName } from '@/data/names'
   import { ELEMENTS } from '@/data/linggen'
@@ -96,7 +96,7 @@
 
   const name = ref(randomDaoName(rng))
   // 建号草稿放在 game store 里持久化:刷新页面既不该白拿一次重掷,也不该洗掉已花掉的次数
-  if (!game.createProfile) game.setCreateProfile(rollLinggen(rng))
+  if (!game.createProfile) game.setCreateProfile(rollLinggenForNewLife(rng))
   const profile = computed(() => game.createProfile!)
   const rerollsLeft = computed(() => game.createRerolls)
   /** 不限次建号:按钮不显示余量,也不会有「刷不动了」的一天 */
@@ -118,7 +118,7 @@
     // 此刻重掷改不了已成真身的灵根,只会让展出的牌和角色对不上
     if (starting.value) return
     if (!game.spendCreateReroll()) return
-    game.setCreateProfile(rollLinggen(rng))
+    game.setCreateProfile(rollLinggenForNewLife(rng))
     rollSeq.value += 1
   }
 
