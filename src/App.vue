@@ -15,6 +15,9 @@
 
     <BottomNavigation v-if="game.started && route.name !== 'create'" />
 
+    <!-- 数值悬浮窗(手改灵石/修为/境界等,自测用) -->
+    <GmPanel v-if="game.started && route.name !== 'create'" />
+
     <!-- 全局浮层 -->
     <ToastHost />
     <UpdatePrompt />
@@ -42,6 +45,7 @@
   import { configureAudio, playSfx, stopBgm, unlockAudio } from '@/core/audio'
   import TopStatusBar from '@/components/common/TopStatusBar.vue'
   import BottomNavigation from '@/components/common/BottomNavigation.vue'
+  import GmPanel from '@/components/common/GmPanel.vue'
   import ToastHost from '@/components/common/ToastHost.vue'
   import UpdatePrompt from '@/components/common/UpdatePrompt.vue'
   import OfflineRewardDialog from '@/components/offline/OfflineRewardDialog.vue'
